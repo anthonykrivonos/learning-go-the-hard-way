@@ -1,3 +1,9 @@
+<script src="//yihui.org/js/math-code.js"></script>
+<!-- Just one possible MathJax CDN below. You may use others. -->
+<script async
+  src="//mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML">
+</script>
+
 # Learning Go the Hard Way
 
 ### A.K.A. coding a neural network in Go.
@@ -101,7 +107,6 @@ Now, try writing the rest of the enums in the same fashion (enum variable name m
     - Dropout
     - L1
     - L2
-    - Normalize
 3. Activation
     - Sigmoid
     - ReLu
@@ -175,9 +180,13 @@ If you look not-so-closely, you'll notice that this isn't a class but, in fact, 
  *	Constructs a new matrix copy from a matrix.
  */
 func MatrixCopy(m *Matrix) *Matrix {
-	copy := new(Matrix)
-	copy.Shape = m.Shape
-	copy.content = m.content
+	copy := MatrixFromDims(m.Shape[0], m.Shape[1])
+	copy.Shape = []int{m.Shape[0], m.Shape[1]}
+	for i := 0; i < m.Shape[0]; i++ {
+		for j := 0; j < m.Shape[1]; j++ {
+			Set(copy, i, j, Get(m, i, j))
+		}
+	}
 	return copy
 }
 
@@ -398,10 +407,136 @@ func MatrixStdNorm(rows, columns int) *Matrix {
 Phew! That was a lot but now we've got a custom Matrix class that we can use to store weights in biases between each layer in our future neural network!
 
 
-### 4. Let the Neural Network Begin: Coding ActivationLayer Class
+### 4. Let the Neural Network Begin: Coding the ActivationLayer Class
 
 Now, we'll first create a new package under `/src/layers` called `layers` using the instructions from step (2) and then create a new file called `activation_layer.go` in that directory.
 
+Now, we'll use `Vectorize` to implement 4 activation functions and their derivatives. You
+can learn more about these functions in great detail through ML research papers and I'll
+simply cover the gist of each one.
+
+#### Sigmoid Activation
+Used to penalize large-magnitude outputs.
+
+`$ Sigmoid(x) = \frac{1}{1 + e^{-x}} $`
+
+Derivative used for backpropagation:
+
+`$ SigmoidDeriv(x) = Sigmoid(x) \times (1 - Sigmoid(x)) $`
+
+#### ReLU Activation
+Zeros out negative outputs.
+
+`$ ReLu(x) = { x if x > 0 else 0 } $`
+
+Derivative used for backpropagation:
+
+`$ ReLuDeriv(x) = { 1 if x > 0 else 0 } $`
+
+#### Softmax Activation
+Used mainly for one-hot-encoded outputs, putting most weight on
+the probable output.
+
+`$ Softmax(x) = e^{x}_j / \sum_{k}e^{x}_k, \text{where j is the index of the target one-hot-encoded features and the denominator loops over all one-hot-encoded features k} $`
+
+Derivative used for backpropagation:
+
+`$ SoftmaxDeriv(x) = Softmax(x) \times (1 - Softmax(x)) $`
+
+Now, let's define the `ActivationLayer` struct as follows.
+
+```
+package layers
+
+import (
+	e "enums"
+	m "matrix"
+	math "math"
+)
+
+type ActivationLayer struct {
+	activation e.Activation
+	size int
+}
+```
+
+Now that we've written the mathematical equations for the activation functions, we'll implement the `Activate` and `Derivative` functions below, along with a basic `ActivationLayerInit` constructor.
+
+```
+func ActivationLayerInit(activation e.Activation, size int) *ActivationLayer {
+	l := new(ActivationLayer)
+	l.activation = activation
+	l.size = size
+	return l
+}
+
+func Activate(l *ActivationLayer, mat m.Matrix) m.Matrix {
+	switch l.activation {
+		case e.Sigmoid:
+			sigmoidFunc := func(x float64) float64 { return 1 / (1 + math.Exp(-x)) }
+			m.Vectorize(&mat, sigmoidFunc)
+		case e.ReLu:
+			reluFunc := func(x float64) float64 {
+				if x > 0 {
+					return x
+				}
+				return 0
+			}
+			m.Vectorize(&mat, reluFunc)
+		case e.Softmax:
+			softmaxFunc := func(x float64) float64 {
+				num := math.Exp(x)
+				denom := 0.0
+				for i := 0; i < mat.Shape[0]; i++ {
+					for j := 0; j < mat.Shape[1]; j++ {
+						denom += math.Exp(m.Get(&mat, i, j))
+					}
+				}
+				return num / denom
+			}
+			m.Vectorize(&mat, softmaxFunc)
+		default:
+			break
+	}
+	return mat
+}
+	
+func Derivative(l *ActivationLayer, mat m.Matrix) m.Matrix {
+	switch l.activation {
+		case e.Sigmoid:
+			sig := Activate(l, mat)
+			subtracted, err := m.Subtract(m.MatrixOfOnes(mat.Shape[0], mat.Shape[1]), &sig)
+			if err == nil {
+				mat, err = m.Multiply(&sig, &subtracted)
+			} else {
+				return mat
+			}
+		case e.ReLu:
+			reluFunc := func(x float64) float64 {
+				if x > 0 {
+					return 1
+				}
+				return 0
+			}
+			m.Vectorize(&mat, reluFunc)
+		case e.Softmax:
+			smax := Activate(l, mat)
+			subtracted, err := m.Subtract(m.MatrixOfOnes(mat.Shape[0], mat.Shape[1]), &smax)
+			if err == nil {
+				mat, err = m.Multiply(&smax, &subtracted)
+			} else {
+				return mat
+			}
+		default:
+			mat = *m.MatrixOfOnes(mat.Shape[0], mat.Shape[1])
+	}
+	return mat
+}
+```
+
+### 5. Let the Neural Network Begin: Coding the RegularizationLayer Class
+
+We'll reuse a lot of the techniques from step (4) in order to create a new type of layer, the regularization layer, which performs some kind of manipulation on the weights between activation layers.
 
 
 

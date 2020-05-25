@@ -3,6 +3,7 @@ package matrix
 import (
 	"fmt"
 	"errors"
+	math "math"
 	rand "math/rand"
 	"time"
 )
@@ -19,9 +20,13 @@ type Matrix struct {
  *	Constructs a new matrix copy from a matrix.
  */
 func MatrixCopy(m *Matrix) *Matrix {
-	copy := new(Matrix)
-	copy.Shape = m.Shape
-	copy.content = m.content
+	copy := MatrixFromDims(m.Shape[0], m.Shape[1])
+	copy.Shape = []int{m.Shape[0], m.Shape[1]}
+	for i := 0; i < m.Shape[0]; i++ {
+		for j := 0; j < m.Shape[1]; j++ {
+			Set(copy, i, j, Get(m, i, j))
+		}
+	}
 	return copy
 }
 
@@ -91,6 +96,59 @@ func MatrixStdNorm(rows, columns int) *Matrix {
 	m := MatrixFromDims(rows, columns)
 	normFunc := func(x float64) float64 { return rand.NormFloat64() }
 	Vectorize(m, normFunc)
+	return m
+}
+
+/**
+ *	Constructs a matrix of binomially distributed samples with the given dimensions.
+ */
+func MatrixBin(p float64, rows, columns int) *Matrix {
+	rand.Seed(int64(time.Now().Unix()))
+
+	// Useful functions
+	max := uint64(15)
+	getRand := func () uint64 { return uint64(rand.Int63()) % max }
+	fact := func (n uint64) uint64 {   
+		var val uint64 = 1
+		var i uint64 = 1
+		for ; i <= n; i++ {
+			val *= i
+		}
+		return uint64(val)
+	}
+	ncr := func (n, r uint64) uint64 {
+		return fact(n) / (fact(r) * fact(n - r))
+	}
+
+	m := MatrixFromDims(rows, columns)
+	binFunc := func(_ float64) float64 {
+		x, n := getRand(), max
+		return float64(ncr(n, x)) * math.Pow(p, float64(x)) * math.Pow(1 - p, float64(n - x))
+	}
+	Vectorize(m, binFunc)
+
+	return m
+}
+
+/**
+ *	Constructs a matrix of uniformly distributed samples with the given dimensions.
+ */
+func MatrixUnif(p float64, rows, columns int) *Matrix {
+	rand.Seed(int64(time.Now().Unix()))
+
+	// Useful functions
+	max := uint64(1000)
+	cutoff := uint64(float64(max) * p)
+	getRand := func () uint64 { return uint64(rand.Int63()) % max }
+	m := MatrixFromDims(rows, columns)
+	unifFunc := func(_ float64) float64 {
+		if getRand() <= cutoff {
+			return 1
+		}
+		return 0
+	}
+	Vectorize(m, unifFunc)
+
 	return m
 }
 

@@ -77,50 +77,87 @@ func main() {
 	// 	fmt.Print("\n\n")
 	// }
 
+	// Test 5
+	// m1 := m.MatrixUnif(.5, 5, 5)
+	// m2 := m.MatrixCopy(m1)
+	// m1_by_m2, e := m.Multiply(m1, m2)
+	// if e != nil {
+	// 	fmt.Println(e)
+	// } else {
+	// 	fmt.Printf("M1:\n")
+	// 	m.PrintMatrix(m1)
+	// 	fmt.Printf("\nM2:\n")
+	// 	m.PrintMatrix(m2)
+	// 	fmt.Printf("\nM1 * M2:\n")
+	// 	m.PrintMatrix(&m1_by_m2)
+	// 	fmt.Print("\n\n")
+	// }
+
+	// fmt.Printf("Original:\n")
+	// var mat *m.Matrix = m.MatrixFromArray( [][]float64{{ 1, 2 }, { 3, 4 }} )
+	// m.PrintMatrix(mat)
+
+	// fmt.Printf("Sigmoid:\n")
+	// var layer = l.ActivationLayerInit("Sigmoid", 32)
+	// var res m.Matrix = l.Activate(layer, *mat)
+	// m.PrintMatrix(&res)
+
+	// fmt.Printf("ReLu:\n")
+	// layer = l.ActivationLayerInit("ReLu", 32)
+	// res = l.Activate(layer, *mat)
+	// m.PrintMatrix(&res)
+
+	// fmt.Printf("Linear:\n")
+	// layer = l.ActivationLayerInit("Linear", 32)
+	// res = l.Activate(layer, *mat)
+	// m.PrintMatrix(&res)
+
+	// fmt.Printf("Softmax:\n")
+	// layer = l.ActivationLayerInit("Softmax", 32)
+	// res = l.Activate(layer, *mat)
+	// m.PrintMatrix(&res)
+
+
+	// fmt.Printf("\nDerivatives:\n\n")
+
+	// fmt.Printf("Sigmoid:\n")
+	// layer = l.ActivationLayerInit("Sigmoid", 32)
+	// res = l.Derivative(layer, *mat)
+	// m.PrintMatrix(&res)
+
+	// fmt.Printf("ReLu:\n")
+	// layer = l.ActivationLayerInit("ReLu", 32)
+	// res = l.Derivative(layer, *mat)
+	// m.PrintMatrix(&res)
+
+	// fmt.Printf("Linear:\n")
+	// layer = l.ActivationLayerInit("Linear", 32)
+	// res = l.Derivative(layer, *mat)
+	// m.PrintMatrix(&res)
+
+	// fmt.Printf("Softmax:\n")
+	// layer = l.ActivationLayerInit("Softmax", 32)
+	// res = l.Derivative(layer, *mat)
+	// m.PrintMatrix(&res)
+
+	// Regularization tests
 	fmt.Printf("Original:\n")
-	var mat *m.Matrix = m.MatrixFromArray( [][]float64{{ 1, 2 }, { 3, 4 }} )
+	var mat *m.Matrix = m.MatrixStdNorm(5, 5)
 	m.PrintMatrix(mat)
 
-	fmt.Printf("Sigmoid:\n")
-	var layer = l.ActivationLayerInit("Sigmoid", 32)
-	var res m.Matrix = l.Activate(layer, *mat)
+	fmt.Printf("Dropout:\n")
+	var layer = l.RegularizationLayerInit("Dropout", 0.5)
+	var res m.Matrix = l.Regularize(layer, *mat)
 	m.PrintMatrix(&res)
 
-	fmt.Printf("ReLu:\n")
-	layer = l.ActivationLayerInit("ReLu", 32)
-	res = l.Activate(layer, *mat)
+	fmt.Printf("L1:\n")
+	layer = l.RegularizationLayerInit("L1", 0.2)
+	res = l.Regularize(layer, *mat)
 	m.PrintMatrix(&res)
 
-	fmt.Printf("Linear:\n")
-	layer = l.ActivationLayerInit("Linear", 32)
-	res = l.Activate(layer, *mat)
+	fmt.Printf("L2:\n")
+	layer = l.RegularizationLayerInit("L2", 0.2)
+	res = l.Regularize(layer, *mat)
 	m.PrintMatrix(&res)
 
-	fmt.Printf("Softmax:\n")
-	layer = l.ActivationLayerInit("Softmax", 32)
-	res = l.Activate(layer, *mat)
-	m.PrintMatrix(&res)
-
-
-	fmt.Printf("\nDerivatives:\n\n")
-
-	fmt.Printf("Sigmoid:\n")
-	layer = l.ActivationLayerInit("Sigmoid", 32)
-	res = l.Derivative(layer, *mat)
-	m.PrintMatrix(&res)
-
-	fmt.Printf("ReLu:\n")
-	layer = l.ActivationLayerInit("ReLu", 32)
-	res = l.Derivative(layer, *mat)
-	m.PrintMatrix(&res)
-
-	fmt.Printf("Linear:\n")
-	layer = l.ActivationLayerInit("Linear", 32)
-	res = l.Derivative(layer, *mat)
-	m.PrintMatrix(&res)
-
-	fmt.Printf("Softmax:\n")
-	layer = l.ActivationLayerInit("Softmax", 32)
-	res = l.Derivative(layer, *mat)
-	m.PrintMatrix(&res)
 }
