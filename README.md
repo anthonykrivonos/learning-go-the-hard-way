@@ -105,9 +105,6 @@ Now, try writing the rest of the enums in the same fashion (enum variable name m
 3. Activation
     - Sigmoid
     - ReLu
-    - LeakyReLu
-    - NoisyReLu
-    - ELU
     - Linear
     - Softmax
 
@@ -166,7 +163,7 @@ Now, let's define the `Matrix` class.
 
 ```
 type Matrix struct {
-	shape []int
+	Shape []int
 	content [][]float64
 }
 ```
@@ -179,7 +176,7 @@ If you look not-so-closely, you'll notice that this isn't a class but, in fact, 
  */
 func MatrixCopy(m *Matrix) *Matrix {
 	copy := new(Matrix)
-	copy.shape = m.shape
+	copy.Shape = m.Shape
 	copy.content = m.content
 	return copy
 }
@@ -189,7 +186,7 @@ func MatrixCopy(m *Matrix) *Matrix {
  */
 func MatrixFromArray(x [][]float64) *Matrix {
 	m := new(Matrix)
-	m.shape = []int{len(x), len(x[0])}
+	m.Shape = []int{len(x), len(x[0])}
 	m.content = x
 	return m
 }
@@ -203,7 +200,7 @@ func MatrixFromDims(rows, columns int) *Matrix {
 	for i := 0; i < rows; i++ {
 		m.content[i] = make([]float64, columns)
 	}
-	m.shape = []int{rows, columns}
+	m.Shape = []int{rows, columns}
 	return m
 }
 ```
@@ -237,8 +234,8 @@ Before we head straight on over to the math functions, let's create two methods 
  *	Performs the given function on all values in the matrix.
  */
 func Vectorize(m *Matrix, f func(float64) float64) {
-	for i := 0; i < m.shape[0]; i++ {
-		for j := 0; j < m.shape[1]; j++ {
+	for i := 0; i < m.Shape[0]; i++ {
+		for j := 0; j < m.Shape[1]; j++ {
 			Set(m, i, j, f(Get(m, i, j)))
 		}
 	}
@@ -248,8 +245,8 @@ func Vectorize(m *Matrix, f func(float64) float64) {
  *	Performs the given function on all values in the matrix, with provided dims.
  */
 func VectorizeWithDims(m *Matrix, f func(float64, int, int) float64) {
-	for i := 0; i < m.shape[0]; i++ {
-		for j := 0; j < m.shape[1]; j++ {
+	for i := 0; i < m.Shape[0]; i++ {
+		for j := 0; j < m.Shape[1]; j++ {
 			Set(m, i, j, f(Get(m, i, j), i, j))
 		}
 	}
@@ -278,28 +275,45 @@ func ScalarMultiply(m *Matrix, s float64) {
 }
 ```
 
-In the above functions, we simply define a subfunction that performs either the additive or multiplicative manipulation using $s$ on $x$, and then perform the vectorize function. Obviously, we aren't returning anything since we're modifying the matrix `m`. Using `VectorizeWithDims`, we create the matrix addition function as follows.
+In the above functions, we simply define a subfunction that performs either the additive or multiplicative manipulation using $s$ on $x$, and then perform the vectorize function. Obviously, we aren't returning anything since we're modifying the matrix `m`. Using `VectorizeWithDims`, we create the matrix addition and subtraction functions as follows.
 
 ```
 /**
- *	Multiplies all values in the matrix by a scalar.
+ *	Adds two matrices and returns the resulting matrix.
  */
 func Add(lhs *Matrix, rhs *Matrix) (Matrix, error) {
 	// Ensure the matrices are summable
-	if lhs.shape[0] != rhs.shape[0] || lhs.shape[1] != rhs.shape[1] {
-		return *lhs, errors.New("Incorrect shapes for adding: (" + string(lhs.shape[0]) + ", " + string(lhs.shape[1]) + ") and (" + string(rhs.shape[0]) + ", " + string(rhs.shape[1]) + ")")
+	if lhs.Shape[0] != rhs.Shape[0] || lhs.Shape[1] != rhs.Shape[1] {
+		return *lhs, errors.New("Incorrect Shapes for adding: (" + string(lhs.Shape[0]) + ", " + string(lhs.Shape[1]) + ") and (" + string(rhs.Shape[0]) + ", " + string(rhs.Shape[1]) + ")")
 	}
 
-	// Create a new matrix with the same shape and add lhs plus rhs
-	res := MatrixFromDims(lhs.shape[0], lhs.shape[1])
+	// Create a new matrix with the same Shape and add lhs plus rhs
+	res := MatrixFromDims(lhs.Shape[0], lhs.Shape[1])
 	add := func(x float64, i, j int) float64 { return Get(lhs, i, j) + Get(rhs, i, j) }
+	VectorizeWithDims(res, add)
+
+	return *res, nil
+}
+
+/**
+ *	Subtracts second matrix from the first and returns the resulting matrix.
+ */
+func Subtract(lhs *Matrix, rhs *Matrix) (Matrix, error) {
+	// Ensure the matrices are compatible
+	if lhs.Shape[0] != rhs.Shape[0] || lhs.Shape[1] != rhs.Shape[1] {
+		return *lhs, errors.New("Incorrect Shapes for subtracting: (" + string(lhs.Shape[0]) + ", " + string(lhs.Shape[1]) + ") and (" + string(rhs.Shape[0]) + ", " + string(rhs.Shape[1]) + ")")
+	}
+
+	// Create a new matrix with the same Shape and add lhs plus rhs
+	res := MatrixFromDims(lhs.Shape[0], lhs.Shape[1])
+	add := func(x float64, i, j int) float64 { return Get(lhs, i, j) - Get(rhs, i, j) }
 	VectorizeWithDims(res, add)
 
 	return *res, nil
 }
 ```
 
-Note that we return an error if the matrices being added are not the same shape. Additionally, instead of modifying a matrix that's effectively passed by reference, we are creating a new `res` matrix that holds the sum of `lhs` and `rhs`. Matrix multiplication is a little more tricky. Since the goal of this tutorial is to learn Go and build a neural network in the process, I settled for a simple $O(n^3)$ matrix multiplication implementation.
+Note that we return an error if the matrices being added are not the same Shape. Additionally, instead of modifying a matrix that's effectively passed by reference, we are creating a new `res` matrix that holds the sum of `lhs` and `rhs`. Matrix multiplication is a little more tricky. Since the goal of this tutorial is to learn Go and build a neural network in the process, I settled for a simple $O(n^3)$ matrix multiplication implementation.
 
 ```
 /**
@@ -308,17 +322,17 @@ Note that we return an error if the matrices being added are not the same shape.
 func Multiply(lhs *Matrix, rhs *Matrix) (Matrix, error) {
 
 	// Ensure the matrices are multiplicable
-	if lhs.shape[1] != rhs.shape[0] {
-		return *lhs, errors.New("Incorrect shapes " + string(lhs.shape[1]) + " and " + string(rhs.shape[0]))
+	if lhs.Shape[1] != rhs.Shape[0] {
+		return *lhs, errors.New("Incorrect Shapes " + string(lhs.Shape[1]) + " and " + string(rhs.Shape[0]))
 	}
 
 	// Create a new matrix from the outter dims of the given matrices
-	res := MatrixFromDims(lhs.shape[0], rhs.shape[1])
+	res := MatrixFromDims(lhs.Shape[0], rhs.Shape[1])
 
 	// Perform matrix multiplication
-	for i := 0; i < lhs.shape[0]; i++ {
-		for j := 0; j < rhs.shape[1]; j++ {
-			for k := 0; k < rhs.shape[0]; k++ {
+	for i := 0; i < lhs.Shape[0]; i++ {
+		for j := 0; j < rhs.Shape[1]; j++ {
+			for k := 0; k < rhs.Shape[0]; k++ {
 				new_val := Get(res, i, j) + (Get(lhs, i, k) * Get(rhs, k, j))
 				Set(res, i, j, new_val)
 			}
