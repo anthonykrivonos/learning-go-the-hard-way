@@ -179,6 +179,13 @@ func Train(nn *NeuralNetwork, X m.Matrix, y m.Matrix, batch_size int, epochs int
 	}
 }
 
+func Classify(nn *NeuralNetwork, x m.Matrix) m.Matrix {
+	// To classify, simply feed forward up until the very end and get the activated output
+	layer_count := len(nn.layers)
+	z_outputs, a_outputs = feedforward(nn, x)
+	return a_outputs[layer_count - 1]
+}
+
 
 func main() {
 	// // var a enums.LayerType = "Activation"
