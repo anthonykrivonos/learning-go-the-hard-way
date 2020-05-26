@@ -163,6 +163,24 @@ func Set(m *Matrix, i, j int, value float64) {
 }
 
 /**
+ *	Sets the matrix row at index i to the values provided.
+ */
+func SetRow(m *Matrix, i int, x []float64) {
+	for j := 0; j < m.Shape[1]; j++ {
+		Set(m, i, j, x[j])
+	}
+}
+
+/**
+ *	Sets the matrix column at index j to the values provided.
+ */
+func SetColumn(m *Matrix, j int, x []float64) {
+	for i := 0; i < m.Shape[1]; i++ {
+		Set(m, i, j, x[i])
+	}
+}
+
+/**
  *	Gets the matrix value at the given coordinates i and j.
  */
 func Get(m *Matrix, i, j int) float64 {

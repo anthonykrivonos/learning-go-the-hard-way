@@ -59,30 +59,31 @@ func Reset(nn *NeuralNetwork) {
 	nn.biases = make([]m.Matrix, layer_count)
 	// Overwrite the weights and biases
 	for i := 0; i < layer_count; i++ {
-		nn.weights[i] = m.MatrixStdNorm(weights_copy[i].size[0], weights_copy[i].size[1])
-		nn.biases[i] = m.MatrixStdNorm(biases_copy[i].size[0], 1)
+		nn.weights[i] = *m.MatrixStdNorm(weights_copy[i].Shape[0], weights_copy[i].Shape[1])
+		nn.biases[i] = *m.MatrixStdNorm(biases_copy[i].Shape[0], 1)
 	}
 }
 
-func feedforward(nn *NeuralNetwork, x m.Matrix) []m.Matrix, []m.Matrix {
+func feedforward(nn *NeuralNetwork, x m.Matrix) ([]m.Matrix, []m.Matrix) {
 	layer_count := len(nn.layers)
 
 	// Feedforward vector
-	a := MatrixCopy(x)
+	a := *m.MatrixCopy(&x)
 
 	// Outputs
-	z_outputs := make([]m.Matrix, layer_count)
+	z_outputs := make([]m.Matrix, layer_count - 1)
 	// Activated outputs
 	a_outputs := make([]m.Matrix, layer_count)
 	a_outputs[0] = a
 
 	// Perform feedforward
-	for i := 0; i < layer_count; i++ {
+	for i := 1; i < layer_count; i++ {
 		// Get the output at the given layer
-		z = m.Add(m.Multiply(a, nn.weights[i]), nn.biases[i])
-		z_outputs[i] = z
+		prod, _ := m.Multiply(&a, &nn.weights[i - 1])
+		z, _ := m.Add(&prod, &nn.biases[i - 1])
+		z_outputs[i - 1] = z
 		// Activate the output
-		a = l.Activate(z)
+		a = l.Activate(&nn.layers[i], z)
 		a_outputs[i] = a
 	}
 
@@ -90,25 +91,39 @@ func feedforward(nn *NeuralNetwork, x m.Matrix) []m.Matrix, []m.Matrix {
 	return z_outputs, a_outputs
 }
 
-func backpropagate(nn *NeuralNetwork, y m.Matrix, z_outputs, a_outputs []m.Matrix) {
+func backpropagate(nn *NeuralNetwork, y m.Matrix, z_outputs, a_outputs []m.Matrix) ([]m.Matrix, []m.Matrix) {
 	layer_count := len(nn.layers)
-	num_outputs := y.shape[0]
+	num_outputs := y.Shape[0]
 
 	// Instantiate a list of errors for outputs at each layer
-	dCdZ := make([]float64, layer_count)
-	for i := 0; i < layer_count; i++ { dCdZ[i] = 0.0 }
+	dCdZ := make([]m.Matrix, layer_count)
 
 	// Record the error in the last layer first
-	dCdZ[layer_count - 1] = m.Multiply(m.Subtract(y, a_outputs[layer_count - 1]), l.Derivative(nn.layers[layer_count - 1], z_outputs[layer_count - 1]))
+	last_layer_diff, _ := m.Subtract(&y, &a_outputs[layer_count - 1])
+	deriv := l.Derivative(&nn.layers[layer_count - 1], z_outputs[layer_count - 2])
+	dCdZ[layer_count - 1], _ = m.Multiply(&last_layer_diff, &deriv)
+	
+	for i := layer_count - 2; i >= 0; i-- {
+		dCdZ_comp_by_weight, _ := m.Multiply(&dCdZ[i + 1], m.Transposed(&nn.weights[i + 1]))
+		activated := l.Activate(&nn.layers[i], z_outputs[i])
+		dCdZ_comp, _ := m.Multiply(&dCdZ_comp_by_weight, &activated)
+		dCdZ[i] = dCdZ_comp
+	}
+
 
 	// Get the derivatives of the cost function w.r.t. the weights and biases
 	dCdw := make([]m.Matrix, layer_count)
 	dCdb := make([]m.Matrix, layer_count)
-	for i := 0; i < layer_count; i++ {
+	for i := 0; i < layer_count - 1; i++ {
+		fmt.Printf("i = %d\n", i)
 		// Derivative of the cost function w.r.t. weights
-		dCdw[i] = Multiply(m.Transposed(a_outputs[i]), dCdZ[i]) / float64(num_outputs)
+		dCdw_comp, _ := m.Multiply(m.Transposed(&a_outputs[i]), &dCdZ[i])
+		m.ScalarMultiply(&dCdw_comp, 1 / float64(num_outputs))
+		dCdw[i] = dCdw_comp
 		// Derivative of the cost function w.r.t. biases
-		dCdb[i] = Multiply(MatrixOfOnes(1, num_outputs), dCdZ[i]) / float64(num_outputs)
+		dCdb_comp, _ := m.Multiply(m.MatrixOfOnes(1, num_outputs), &dCdZ[i])
+		m.ScalarMultiply(&dCdb_comp, 1 / float64(num_outputs))
+		dCdb[i] = dCdb_comp
 	}
 
 	// Return the cost function derivatives
@@ -117,59 +132,61 @@ func backpropagate(nn *NeuralNetwork, y m.Matrix, z_outputs, a_outputs []m.Matri
 
 func Train(nn *NeuralNetwork, X m.Matrix, y m.Matrix, batch_size int, epochs int, lr float64) {
 	layer_count := len(nn.layers)
-	num_outputs := y.shape[0]
+	num_outputs := y.Shape[0]
 
 	// Loop over number of epochs
 	for e := 0; e < epochs; e++ {
 		fmt.Printf("Epoch %d:\n", e + 1)
 		batch_count := 0
 		i := 0
-		for ; i < y.shape[0]; {
+		for ; i < y.Shape[0]; {
 			batch_count += 1
 
 			// Compute the size of the current batch
 			current_batch_size := batch_size
-			if y.shape[0] - i < batch_size {
-				current_batch_size = y.shape[0] - i
+			if y.Shape[0] - i < batch_size {
+				current_batch_size = y.Shape[0] - i
 			}
 
 			// Store the training data within the batch
-			batch_X := m.MatrixFromDims(current_batch_size, X.shape[1])
-			batch_y := m.MatrixFromDims(current_batch_size, y.shape[1])
+			batch_X := m.MatrixFromDims(current_batch_size, X.Shape[1])
+			batch_y := m.MatrixFromDims(current_batch_size, y.Shape[1])
 			for j := 0; j < current_batch_size; j++ {
-				batch_X[j] = m.GetRow(X, i + j)
-				batch_y[j] = m.GetRow(y, i + j)
+				m.SetRow(batch_X, j, m.GetRow(&X, i + j))
+				m.SetRow(batch_y, j, m.GetRow(&y, i + j))
 			}
 
 			// Feedforward
-			z_outputs, a_outputs = feedforward(nn, batch_X)
+			z_outputs, a_outputs := feedforward(nn, *batch_X)
 			// Backpropagate
-			dCdw, dCdb = backpropagate(nn, batch_y, z_outputs, a_outputs)
+			dCdw, dCdb := backpropagate(nn, *batch_y, z_outputs, a_outputs)
 
 			// Function that regularizes the input x only if a regularization layer is present
 			conditionalReg := func (layer_num int, x m.Matrix) m.Matrix {
 				if layer, contains := nn.reg_layers[layer_num]; contains {
-					return l.Regularize(l, x)
+					return l.Regularize(&layer, x)
 				}
 				return x
 			}
 
 			// Update weights and biases
 			for j := 0; j < layer_count; j++ {
-				lr_by_dCdw = MatrixCopy(dCdw[j])
-				ScalarMultiply(lr_by_dCdw, lr)
-				lr_by_dCdb = MatrixCopy(dCdb[j])
-				ScalarMultiply(lr_by_dCdb, lr)
+				lr_by_dCdw := m.MatrixCopy(&dCdw[j])
+				m.ScalarMultiply(lr_by_dCdw, lr)
+				lr_by_dCdb := m.MatrixCopy(&dCdb[j])
+				m.ScalarMultiply(lr_by_dCdb, lr)
 
-				nn.weights[j] = conditionalReg(j, Add(nn.weights[j], lr_by_dCdw)[0])
-				nn.biases[j] = conditionalReg(j, Add(nn.biases[j], lr_by_dCdb)[0])
+				weights_sum, _ := m.Add(&nn.weights[j], lr_by_dCdw)
+				biases_sum, _ := m.Add(&nn.biases[j], lr_by_dCdb)
+				nn.weights[j] = conditionalReg(j, weights_sum)
+				nn.biases[j] = conditionalReg(j, biases_sum)
 			}
 
 			// Calculate loss
-			sub, err = Subtract(batch_y, a_outputs[layer_count - 1])[0]
-			Vectorize(sub, func (x float64) float64 { return math.Pow(x, 2) })
-			sum := m.Sum(sub)
-			loss := sum / num_outputs
+			sub, _ := m.Subtract(batch_y, &a_outputs[layer_count - 1])
+			m.Vectorize(&sub, func (x float64) float64 { return math.Pow(x, 2) })
+			sum := m.Sum(&sub)
+			loss := sum / float64(num_outputs)
 			
 			// Verbosity
 			fmt.Printf(" - Batch %d (loss: )\n", batch_count, loss)
@@ -182,7 +199,7 @@ func Train(nn *NeuralNetwork, X m.Matrix, y m.Matrix, batch_size int, epochs int
 func Classify(nn *NeuralNetwork, x m.Matrix) m.Matrix {
 	// To classify, simply feed forward up until the very end and get the activated output
 	layer_count := len(nn.layers)
-	z_outputs, a_outputs = feedforward(nn, x)
+	_, a_outputs := feedforward(nn, x)
 	return a_outputs[layer_count - 1]
 }
 
@@ -340,10 +357,23 @@ func main() {
 	// res = l.Regularize(layer, *mat)
 	// m.PrintMatrix(&res)
 
+	// Initialize simple multi-layer network
 	nn := NeuralNetworkInit(32)
 	AddActivationLayer(nn, l.ActivationLayerInit(e.ReLu, 16))
 	AddActivationLayer(nn, l.ActivationLayerInit(e.ReLu, 8))
 	AddRegularizationLayer(nn, l.RegularizationLayerInit(e.Dropout, 0.5))
-	AddActivationLayer(nn, l.ActivationLayerInit(e.Softmax, 4))
+	AddActivationLayer(nn, l.ActivationLayerInit(e.Sigmoid, 2))
 
+	X := m.MatrixFromArray([][]float64{
+		{ 5, 10, 2, 4 },
+		{ 1, 2, .4, .8 },
+		{ 25, 20, 1, 6 },
+		{ 100, 200, 40, 80 },
+	})
+	y := m.MatrixFromArray([][]float64{ {1}, {1}, {0}, {1} })
+	batch_size := 1
+	epochs := 10
+	lr := 0.001
+
+	Train(nn, *X, *y, batch_size, epochs, lr)
 }
