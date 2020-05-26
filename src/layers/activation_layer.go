@@ -7,19 +7,19 @@ import (
 )
 
 type ActivationLayer struct {
-	activation e.Activation
-	size int
+	Activation e.Activation
+	Size int
 }
 
-func ActivationLayerInit(activation e.Activation, size int) *ActivationLayer {
+func ActivationLayerInit(Activation e.Activation, Size int) *ActivationLayer {
 	l := new(ActivationLayer)
-	l.activation = activation
-	l.size = size
+	l.Activation = Activation
+	l.Size = Size
 	return l
 }
 
 func Activate(l *ActivationLayer, mat m.Matrix) m.Matrix {
-	switch l.activation {
+	switch l.Activation {
 		case e.Sigmoid:
 			sigmoidFunc := func(x float64) float64 { return 1 / (1 + math.Exp(-x)) }
 			m.Vectorize(&mat, sigmoidFunc)
@@ -50,7 +50,7 @@ func Activate(l *ActivationLayer, mat m.Matrix) m.Matrix {
 }
 	
 func Derivative(l *ActivationLayer, mat m.Matrix) m.Matrix {
-	switch l.activation {
+	switch l.Activation {
 		case e.Sigmoid:
 			sig := Activate(l, mat)
 			subtracted, err := m.Subtract(m.MatrixOfOnes(mat.Shape[0], mat.Shape[1]), &sig)

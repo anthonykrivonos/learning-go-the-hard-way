@@ -169,6 +169,23 @@ func Get(m *Matrix, i, j int) float64 {
 	return m.content[i][j]
 }
 
+/**
+ *	Gets the row at index i.
+ */
+func GetRow(m *Matrix, i int) []float64 {
+	return m.content[i]
+}
+
+/**
+ *	Gets the column at index j.
+ */
+func GetColumn(m *Matrix, j int) []float64 {
+	column := make([]float64, m.Shape[0])
+	for i := 0; i < m.Shape[0]; i++ {
+		column[i] = Get(m, i, j)
+	}
+	return column
+}
 
 /* MATH FUNCTIONS */
 
@@ -250,6 +267,30 @@ func ScalarMultiply(m *Matrix, s float64) {
 
 
 /* UTILITY FUNCTIONS */
+
+/**
+ *	Returns the sum of all components in the matrix.
+ */
+func Sum(m *Matrix) float64 {
+	sum := float64(0)
+	for i := 0; i < m.Shape[0]; i++ {
+		for j := 0; j < m.Shape[1]; j++ {
+			sum += Get(m, i, j)
+		}
+	}
+	return sum
+}
+
+/**
+ *	Transposes the matrix into a new matrix.
+ */
+func Transposed(m *Matrix) *Matrix {
+	copy := MatrixCopy(m)
+	new_m := MatrixFromDims(m.Shape[1], m.Shape[0])
+	transposeFunc := func (x float64, i, j int) float64 { return Get(copy, j, i) }
+	VectorizeWithDims(new_m, transposeFunc)
+	return new_m
+}
 
 /**
  *	Performs the given function on all values in the matrix.

@@ -234,6 +234,24 @@ func Set(m *Matrix, i, j int, value float64) {
 func Get(m *Matrix, i, j int) float64 {
 	return m.content[i][j]
 }
+
+/**
+ *	Gets the row at index i.
+ */
+func GetRow(m *Matrix, i int) []float64 {
+	return m.content[i]
+}
+
+/**
+ *	Gets the column at index j.
+ */
+func GetColumn(m *Matrix, j int) []float64 {
+	column := make([]float64, m.Shape[0])
+	for i := 0; i < m.Shape[0]; i++ {
+		column[i] = Get(m, i, j)
+	}
+	return column
+}
 ```
 
 Before we head straight on over to the math functions, let's create two methods that'll simplify matrix operations for us in the future. `Vectorize` is simply a closure, or a callback function (you can think of these as function pointers if you're not familiar with Node.js/Swift) that sends a value from the matrix as its only argument and expects you to return a modified version of that value. Don't worry if that's confusing, the upcoming examples will surely clear it up for you. Additionally, you can look at [`numpy.vectorize`](https://numpy.org/doc/stable/reference/generated/numpy.vectorize.html), since this is the effect we're going for.
@@ -354,6 +372,33 @@ func Multiply(lhs *Matrix, rhs *Matrix) (Matrix, error) {
 
 Visit [here](https://www.tutorialspoint.com/matrix-multiplication-algorithm) for more information on this algorithm.
 
+Finally, let's add a `Tranpose` function using `VectorizeWithDims` that simply transposes the matrix into a new one (`(i, j) -> (j, i)`), as well as a function called `Sum` that simply returns the sum of all components in the matrix.
+```
+/**
+ *	Transposes the matrix into a new matrix.
+ */
+func Transposed(m *Matrix) *Matrix {
+	copy := MatrixCopy(m)
+	new_m := MatrixFromDims(m.Shape[1], m.Shape[0])
+	transposeFunc := func (x float64, i, j int) float64 { return Get(copy, j, i) }
+	VectorizeWithDims(new_m, transposeFunc)
+	return new_m
+}
+
+/**
+ *	Returns the sum of all components in the matrix.
+ */
+func Sum(m *Matrix) float64 {
+	sum := float64(0)
+	for i := 0; i < m.Shape[0]; i++ {
+		for j := 0; j < m.Shape[1]; j++ {
+			sum += Get(m, i, j)
+		}
+	}
+	return sum
+}
+```
+
 We're almost done with our `Matrix` class! I simply added a few extra constructor-like functions to make declaring special matrices easier in the future. I wish I had more time to explain them in detail, but I hope they are all pretty self-explanatory.
 
 ```
@@ -455,23 +500,23 @@ import (
 )
 
 type ActivationLayer struct {
-	activation e.Activation
-	size int
+	Activation e.Activation
+	Size int
 }
 ```
 
 Now that we've written the mathematical equations for the activation functions, we'll implement the `Activate` and `Derivative` functions below, along with a basic `ActivationLayerInit` constructor.
 
 ```
-func ActivationLayerInit(activation e.Activation, size int) *ActivationLayer {
+func ActivationLayerInit(Activation e.Activation, Size int) *ActivationLayer {
 	l := new(ActivationLayer)
-	l.activation = activation
-	l.size = size
+	l.Activation = Activation
+	l.Size = Size
 	return l
 }
 
 func Activate(l *ActivationLayer, mat m.Matrix) m.Matrix {
-	switch l.activation {
+	switch l.Activation {
 		case e.Sigmoid:
 			sigmoidFunc := func(x float64) float64 { return 1 / (1 + math.Exp(-x)) }
 			m.Vectorize(&mat, sigmoidFunc)
@@ -502,7 +547,7 @@ func Activate(l *ActivationLayer, mat m.Matrix) m.Matrix {
 }
 	
 func Derivative(l *ActivationLayer, mat m.Matrix) m.Matrix {
-	switch l.activation {
+	switch l.Activation {
 		case e.Sigmoid:
 			sig := Activate(l, mat)
 			subtracted, err := m.Subtract(m.MatrixOfOnes(mat.Shape[0], mat.Shape[1]), &sig)
@@ -538,7 +583,80 @@ func Derivative(l *ActivationLayer, mat m.Matrix) m.Matrix {
 
 We'll reuse a lot of the techniques from step (4) in order to create a new type of layer, the regularization layer, which performs some kind of manipulation on the weights between activation layers.
 
+We define the `RegularizationLayer` struct in a similar fashion as `ActivationLayer`.
 
+```
+package layers
+
+import (
+	e "enums"
+	m "matrix"
+	math "math"
+	rand "math/rand"
+	"time"
+)
+
+type RegularizationLayer struct {
+	Regularization e.Regularization
+	parameter float64
+}
+
+func RegularizationLayerInit(Regularization e.Regularization, parameter float64) *RegularizationLayer {
+	l := new(RegularizationLayer)
+	l.Regularization = Regularization
+	l.parameter = parameter
+	return l
+}
+```
+
+`regularization` stores the type of regularization this layer will perform and the `parameter` stores either the dropout rate for Dropout Regularization or `$\lambda$` for L1 and L2 regularization.
+
+Next, we'll implement these regularizations in the `Regularize` function. Once again, I'm a little lazy and tired to bring in the mathematical background here, but the internet is your oyster in researching more about regularization in machine learning.
+
+```
+func Regularize(l *RegularizationLayer, weights m.Matrix) m.Matrix {
+	switch l.Regularization {
+		case e.Dropout:
+			dropout_rate := l.parameter
+
+			// Seed the random generator
+			rand.Seed(int64(time.Now().Unix()))
+			max := uint64(1000)
+			cutoff := uint64(float64(max) * dropout_rate)
+			getRand := func () uint64 { return uint64(rand.Int63()) % max }
+
+			// Randomly drop weight components
+			dropoutFunc := func (x float64) float64 {
+				if getRand() <= cutoff {
+					return x
+				}
+				return 0
+			}
+			m.Vectorize(&weights, dropoutFunc)
+		case e.L1:
+			l1_lambda := math.Abs(l.parameter)
+			l1Func := func (x float64) float64 {
+				if x >= 0 {
+					return 1 / l1_lambda
+				}
+				return -1 / l1_lambda
+			}
+			l1_weights := m.MatrixCopy(&weights)
+			m.Vectorize(l1_weights, l1Func)
+			weights, _ = m.Subtract(&weights, l1_weights)
+		case e.L2:
+			l2_lambda := math.Abs(l.parameter)
+			l2_weights := m.MatrixCopy(&weights)
+			m.ScalarMultiply(l2_weights, 1 / l2_lambda)
+			weights, _ = m.Subtract(&weights, l2_weights)
+		default:
+			break
+	}
+	return weights
+}
+```
+
+Now, we have all the basic building blocks in place and are ready to code the actual `NeuralNetwork` class.
 
 ## References
 

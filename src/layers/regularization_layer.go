@@ -9,19 +9,19 @@ import (
 )
 
 type RegularizationLayer struct {
-	regularization e.Regularization
+	Regularization e.Regularization
 	parameter float64
 }
 
-func RegularizationLayerInit(regularization e.Regularization, parameter float64) *RegularizationLayer {
+func RegularizationLayerInit(Regularization e.Regularization, parameter float64) *RegularizationLayer {
 	l := new(RegularizationLayer)
-	l.regularization = regularization
+	l.Regularization = Regularization
 	l.parameter = parameter
 	return l
 }
 
 func Regularize(l *RegularizationLayer, weights m.Matrix) m.Matrix {
-	switch l.regularization {
+	switch l.Regularization {
 		case e.Dropout:
 			dropout_rate := l.parameter
 
